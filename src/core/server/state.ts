@@ -1,7 +1,7 @@
 import { color } from 'robo.js'
 import { ServerMessagePayload } from '../types'
 import { syncLogger } from './logger'
-import { _connections } from './server'
+import { _connections } from './'
 
 export const _states: Record<string, SyncState<any>> = {}
 

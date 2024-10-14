@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { ClientMessagePayload, FunctionCall, FunctionResponse, ServerMessagePayload } from './types'
 import type { SyncState } from './server/state'
-import { Api } from './server/server'
+import { Api } from './server'
 import { nanoid } from 'nanoid'
 
 interface ClientContext<API extends Api> {
@@ -16,7 +16,7 @@ export function createApiClient<API extends Api>() {
 		ws: null as WebSocket | null
 	})
 
-	function ContextProvider(props: { children: React.ReactNode; loadingScreen?: React.ReactNode }) {
+	function ApiContextProvider(props: { children: React.ReactNode; loadingScreen?: React.ReactNode }) {
 		const { children, loadingScreen = null } = props
 		const context = setupSyncState<API>()
 
@@ -30,12 +30,12 @@ export function createApiClient<API extends Api>() {
 	function useApi() {
 		const { ClientProxy } = useContext(Context)
 		if (!ClientProxy) {
-			throw new Error('useApi: ClientProxy is not defined! Use under SyncContextProvider')
+			throw new Error('useApi: Context is not defined! Use under ApiContextProvider')
 		}
 		return ClientProxy
 	}
 
-	return { ContextProvider, useApi }
+	return { ApiContextProvider, useApi }
 }
 
 type CallbackEntry = { key: string; callback: UpdateCallback }
@@ -54,7 +54,7 @@ export type Client<T extends Api> = {
 				(...args: P) => Promise<ReturnType<T[K]>>
 		: // If the value is a SyncState, return a function that returns the state
 			T[K] extends SyncState<infer X>
-			? { sync: (depend?: string) => X | undefined }
+			? { $: { useSync: (depend?: string) => X | undefined; key: string } }
 			: // If the value is an object, recursively convert it to a Client
 				T[K] extends object
 				? // @ts-ignore // Ts doesn't like the recursive type
@@ -172,7 +172,7 @@ function setupSyncState<API extends Api>(): ClientContext<API> {
 
 		// Listen for updates to the key if first callback
 		if (callbacks[key].length === 1) {
-			ws?.send(JSON.stringify({ key, type: 'on' } satisfies ClientMessagePayload))
+			ws?.send(JSON.stringify({ key, type: 'on' } as ClientMessagePayload))
 		} else {
 			// Apply last known state to the new callback
 			callback(cache[key], key)
@@ -193,62 +193,65 @@ function setupSyncState<API extends Api>(): ClientContext<API> {
 
 		// Stop listening for updates to the key if last callback
 		if (callbacks[callback.key].length === 0) {
-			ws?.send(JSON.stringify({ key: callback.key, type: 'off' } satisfies ClientMessagePayload))
+			ws?.send(JSON.stringify({ key: callback.key, type: 'off' } as ClientMessagePayload))
 		}
 	}
 
 	function ClientProxy(path: string): unknown {
 		return new Proxy(() => {}, {
 			get: function (_, prop) {
+				if (String(prop) === '$') {
+					return {
+						key: path,
+						useSync: (depend?: string) => {
+							const key = path + (depend ? '|' + depend : '')
+							const [state, setState] = useState<unknown>()
+							const hasWs = !!ws
+
+							useEffect(() => {
+								if (connected && hasWs) {
+									// Register the callback to update the state
+									console.log('Registering callback for', key)
+									const callbackId = registerCallback(key, (data, key) => {
+										if (key === key) {
+											setState(data)
+										}
+									})
+
+									// Unregister the callback when the component unmounts
+									return () => {
+										console.log('Unregistering callback for', key)
+										unregisterCallback(callbackId)
+									}
+								}
+							}, [connected, hasWs])
+
+							return state
+						}
+					}
+				}
 				return ClientProxy(`${path ? `${path}.` : ''}${String(prop)}`)
 			},
 			apply: function (_, __, argumentsList) {
 				console.info(`Called function at path: ${path} with parameters: ${argumentsList}`)
-				if (path.endsWith('sync')) {
-					// state management
-					const depend = argumentsList[0]
-					const key = path.split('.').slice(0, -1).join('.') + (depend ? '|' + depend : '')
-					const [state, setState] = useState<unknown>()
-					const hasWs = !!ws
 
-					useEffect(() => {
-						if (connected && hasWs) {
-							// Register the callback to update the state
-							console.log('Registering callback for', key)
-							const callbackId = registerCallback(key, (data, key) => {
-								if (key === key) {
-									setState(data)
-								}
-							})
+				// Send the function call to the server
+				const key = `${nanoid()}-${path}`
 
-							// Unregister the callback when the component unmounts
-							return () => {
-								console.log('Unregistering callback for', key)
-								unregisterCallback(callbackId)
-							}
+				ws?.send(
+					JSON.stringify({
+						type: 'function-call',
+						key,
+						data: {
+							path,
+							params: argumentsList
 						}
-					}, [connected, hasWs])
+					} satisfies ClientMessagePayload<FunctionCall>)
+				)
 
-					return state
-				} else {
-					// Send the function call to the server
-					const id = `${nanoid()}-${path}-${JSON.stringify(argumentsList)}`
-
-					ws?.send(
-						JSON.stringify({
-							type: 'function-call',
-							key: id,
-							data: {
-								path,
-								params: argumentsList
-							}
-						} satisfies ClientMessagePayload<FunctionCall>)
-					)
-
-					return new Promise((resolve) => {
-						queue[id] = resolve
-					})
-				}
+				return new Promise((resolve) => {
+					queue[key] = resolve
+				})
 			}
 		})
 	}
