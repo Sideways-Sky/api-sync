@@ -1,0 +1,67 @@
+{
+	"name": "api-sync",
+	"description": "",
+	"version": "0.1.0",
+	"type": "module",
+	"private": false,
+	"keywords": [
+		"bot",
+		"discord",
+		"discord.js",
+		"robo",
+		"robo.js",
+		"typescript"
+	],
+	"main": ".robo/build/index.js",
+	"license": "MIT",
+	"author": "Sideways Sky",
+	"contributors": [
+		"Sideways Sky"
+	],
+	"files": [
+		".robo/",
+		"src/",
+		"LICENSE",
+		"README.md"
+	],
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
+	"scripts": {
+		"build": "robo build plugin",
+		"dev": "robo build plugin --watch",
+		"lint": "pnpm lint:eslint && pnpm lint:style",
+		"lint:eslint": "eslint -c config/eslint.mjs .",
+		"lint:style": "prettier --write .",
+		"prepublishOnly": "robo build plugin"
+	},
+	"dependencies": {
+		"nanoid": "^5.0.7",
+		"ws": "^8.18.0"
+	},
+	"devDependencies": {
+		"@robojs/server": "latest",
+		"@swc/core": "latest",
+		"@types/node": "latest",
+		"@types/react": "^18.3.11",
+		"@types/ws": "^8.5.12",
+		"discord.js": "latest",
+		"prettier": "latest",
+		"robo.js": "latest",
+		"typescript": "latest"
+	},
+	"peerDependencies": {
+		"react": "^18.0.0",
+		"robo.js": "^0.10.1"
+	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		},
+		"robo.js": {
+			"optional": false
+		}
+	},
+	"packageManager": "pnpm@9.12.1+sha512.e5a7e52a4183a02d5931057f7a0dbff9d5e9ce3161e33fa68ae392125b79282a8a8a470a51dfc8a0ed86221442eb2fb57019b0990ed24fab519bf0e1bc5ccfc4"
+}
