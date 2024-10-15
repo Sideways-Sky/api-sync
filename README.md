@@ -2,9 +2,9 @@
 
 ---
 
-# 🚀 apiSync
+# 🚀 api-sync
 
-Welcome to _apiSync_! This plugin is designed to seamlessly integrate with your existing **[Robo.js](https://github.com/Wave-Play/robo)** project and provide new features and enhancements to your robo. The best part? Everything automatically works once you install this plugin!
+Welcome to _api-sync_! Real-time state sync across clients and server the simplest way possible. Perfect for multiplayer games and chat apps. It's like magic, but real! 🎩✨
 
 ➞ [📚 **Documentation:** Getting started](https://docs.roboplay.dev/docs/getting-started)
 
@@ -12,23 +12,75 @@ Welcome to _apiSync_! This plugin is designed to seamlessly integrate with your 
 
 > 👩‍💻 **Are you the plugin developer?** Check out the **[Development Guide](DEVELOPMENT.md)** for instructions on how to develop, build, and publish this plugin.
 
-## Installation 💻
+## Installation
 
 To add this plugin to your Robo.js project:
 
 ```bash
-npx robo add apiSync
+npx robo add api-sync
 ```
 
-New to Robo.js? Start your project with this plugin pre-installed:
+> **Note:** You will also need to install the `@robojs/server`.
 
-```bash
-npx create-robo <project-name> -p apiSync
-```
-
-<!-- Replace the following with your plugin's usage instructions. -->
-<!--
 ## Usage 🎨
 
-This plugin provides awesome new features to your Robo.js project. Here's an example of how you can use them in your project:
--->
+### server
+
+```ts
+// src/events/_start.ts
+import { SyncServer } from 'api-sync/server.js'
+import { syncApi, Api, SyncState } from '../syncApi'
+
+const myApi = {
+	hello: (sessionId) => {
+		console.log('Hello from', sessionId)
+	}
+    counter: new SyncState<number>()
+} satisfies Api
+
+export type MyApi = typeof myApi
+
+export default async () => {
+	SyncServer.defineApi(syncApi)
+}
+```
+
+### client
+
+setup client api provider
+
+```tsx
+// src/app/App.tsx
+import { Activity } from './Activity'
+import './App.css'
+import { createApiClient } from 'api-sync/client.js'
+import type { MyApi } from '../events/_start.js'
+const { ApiContextProvider, useApi } = createApiClient<MyApi>()
+export { useApi }
+
+export default function App() {
+	return (
+		<DiscordContextProvider>
+			<ApiContextProvider>
+				<Activity />
+			</ApiContextProvider>
+		</DiscordContextProvider>
+	)
+}
+```
+
+use api
+
+```tsx
+// src/app/Activity.tsx
+import { useApi } from '.App'
+
+export default function Activity() {
+	const api = useApi()
+	const counter = api.counter.$.useSync()
+
+	useEffect(() => {
+		api.hello()
+	}, [])
+}
+```

@@ -32,7 +32,7 @@ let _wss: WebSocketServer | undefined
 
 // Should only be called once on the server
 async function defineApi(api: Api) {
-	syncLogger.info('Creating API Sync server...')
+	syncLogger.debug('Creating API Sync server...')
 	setKeys(api, '')
 	await ready()
 	createWebSocketServer(api)
