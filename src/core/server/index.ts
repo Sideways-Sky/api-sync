@@ -1,5 +1,5 @@
 import { syncLogger } from './logger.js'
-import { getServerEngine, ready } from '@robojs/server'
+import { ready, Server } from '@robojs/server'
 import { NodeEngine } from '@robojs/server/engines.js'
 import { nanoid } from 'nanoid'
 import WebSocket, { WebSocketServer } from 'ws'
@@ -32,11 +32,12 @@ let _wss: WebSocketServer | undefined
 
 // Should only be called once on the server
 async function defineApi(api: Api) {
-	syncLogger.debug('Creating API Sync server...')
 	setKeys(api, '')
 	await ready()
+	syncLogger.debug('Creating WebSocket server')
 	createWebSocketServer(api)
 	syncLogger.debug('WebSocket server created successfully.')
+	syncLogger.ready('API Sync is live')
 }
 
 function createWebSocketServer(api: Api) {
@@ -217,7 +218,7 @@ function createWebSocketServer(api: Api) {
 	})
 
 	// Handle upgrade requests
-	const engine = getServerEngine<NodeEngine>()
+	const engine = Server.get() as NodeEngine
 	engine.registerWebsocket('/sync', (req, socket, head) => {
 		const wss = getSocketServer()
 		wss?.handleUpgrade(req, socket, head, function done(ws) {

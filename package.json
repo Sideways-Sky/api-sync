@@ -41,7 +41,7 @@
 		"ws": "^8.18.0"
 	},
 	"devDependencies": {
-		"@robojs/server": "latest",
+		"@robojs/server": "^0.6.1",
 		"@swc/core": "latest",
 		"@types/node": "latest",
 		"@types/react": "^18.3.11",
