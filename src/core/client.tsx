@@ -112,7 +112,7 @@ function setupSyncState<API extends Api>(): ClientContext<API> {
 					const { key, data } = payload
 
 					// Ignore if data is undefined
-					if (data === undefined || !key) {
+					if (!key) {
 						break
 					}
 

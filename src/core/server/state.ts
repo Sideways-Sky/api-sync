@@ -22,11 +22,15 @@ export class SyncState<T> {
 		return this._state[depend || '']
 	}
 
-	set(newState: T, depend?: string) {
+	set(newState: T | undefined, depend?: string) {
 		if (newState === this._state) {
 			return
 		}
-		this._state[depend || ''] = newState
+		if (newState === undefined) {
+			delete this._state[depend || '']
+		} else {
+			this._state[depend || ''] = newState
+		}
 		const key = this.key
 		if (!key) {
 			console.error('No key provided for state update')
@@ -45,7 +49,7 @@ export class SyncState<T> {
 		syncLogger.debug(`Broadcasted ${color.bold(fullKey)} state update to ${broadcastResult.length} connections.`)
 	}
 
-	update(change: (prev: T | undefined) => T, depend?: string) {
+	update(change: (prev: T | undefined) => T | undefined, depend?: string) {
 		this.set(change(this.get(depend)), depend)
 	}
 }
