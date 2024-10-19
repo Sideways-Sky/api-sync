@@ -22,8 +22,8 @@ export class SyncState<T> {
 		return this._state[depend || '']
 	}
 
-	set(newState: T | undefined, depend?: string) {
-		if (newState === this._state) {
+	set(newState: T | undefined, depend?: string, force?: boolean) {
+		if (newState === this._state && !force) {
 			return
 		}
 		if (newState === undefined) {

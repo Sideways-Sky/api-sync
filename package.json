@@ -51,8 +51,8 @@
 		"typescript": "latest"
 	},
 	"peerDependencies": {
-		"react": "^18.0.0",
-		"robo.js": "^0.10.21"
+		"react": "^18.3.1",
+		"robo.js": "^0.10.22"
 	},
 	"peerDependenciesMeta": {
 		"react": {

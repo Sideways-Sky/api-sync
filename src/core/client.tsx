@@ -11,19 +11,20 @@ interface ClientContext<API extends Api> {
 }
 
 export function createApiClient<API extends Api>() {
-	const Context = createContext<ClientContext<API>>({
+	const Context = createContext<ClientContext<any>>({
 		connected: false,
 		ws: null as WebSocket | null
 	})
 
 	function ApiContextProvider(props: { children: React.ReactNode; loadingScreen?: React.ReactNode }) {
 		const { children, loadingScreen = null } = props
-		const context = setupSyncState<API>()
+		const context = setupSyncState()
 
 		if (loadingScreen && (!context.connected || !context.ws)) {
 			return <>{loadingScreen}</>
 		}
 
+		//@ts-ignore
 		return <Context.Provider value={context}>{children}</Context.Provider>
 	}
 
@@ -32,10 +33,10 @@ export function createApiClient<API extends Api>() {
 		if (!ClientProxy) {
 			throw new Error('useApi: Context is not defined! Use under ApiContextProvider')
 		}
-		return ClientProxy
+		return ClientProxy as Client<API>
 	}
 
-	return { ApiContextProvider, useApi }
+	return { useApi, ApiContextProvider }
 }
 
 type CallbackEntry = { key: string; callback: UpdateCallback }
@@ -54,7 +55,13 @@ export type Client<T extends Api> = {
 				(...args: P) => Promise<ReturnType<T[K]>>
 		: // If the value is a SyncState, return a function that returns the state
 			T[K] extends SyncState<infer X>
-			? { $: { useSync: (depend?: string) => X | undefined; key: string } }
+			? {
+					$: {
+						useSync: (depend?: string) => X | undefined
+						key: string
+						sub: (callback: (data: X) => void, depend?: string) => () => void
+					}
+				}
 			: // If the value is an object, recursively convert it to a Client
 				T[K] extends object
 				? // @ts-ignore // Ts doesn't like the recursive type
@@ -211,7 +218,7 @@ function setupSyncState<API extends Api>(): ClientContext<API> {
 							useEffect(() => {
 								if (connected && hasWs) {
 									// Register the callback to update the state
-									console.log('Registering callback for', key)
+									console.log('Registering callback (in useSync) for', key)
 									const callbackId = registerCallback(key, (data, key) => {
 										if (key === key) {
 											setState(data)
@@ -220,13 +227,27 @@ function setupSyncState<API extends Api>(): ClientContext<API> {
 
 									// Unregister the callback when the component unmounts
 									return () => {
-										console.log('Unregistering callback for', key)
+										console.log('Un-registering callback (in useSync) for', key)
 										unregisterCallback(callbackId)
 									}
 								}
 							}, [connected, hasWs])
 
 							return state
+						},
+						sub: (callback: (data: unknown) => void, depend?: string) => {
+							const key = path + (depend ? '|' + depend : '')
+							console.log('Registering callback (in sub) for', key)
+							const callbackId = registerCallback(key, (data, key) => {
+								if (key === key) {
+									callback(data)
+								}
+							})
+
+							return () => {
+								console.log('Un-registering callback (in sub) for', key)
+								unregisterCallback(callbackId)
+							}
 						}
 					}
 				}

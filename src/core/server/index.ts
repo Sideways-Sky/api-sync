@@ -35,12 +35,12 @@ async function defineApi(api: Api) {
 	setKeys(api, '')
 	await ready()
 	syncLogger.debug('Creating WebSocket server')
-	createWebSocketServer(api)
+	createSocketServer(api)
 	syncLogger.debug('WebSocket server created successfully.')
 	syncLogger.ready('API Sync is live')
 }
 
-function createWebSocketServer(api: Api) {
+function createSocketServer(api: Api) {
 	// Create WebSocket server piggybacking on the HTTP server
 	_wss = new WebSocketServer({
 		noServer: true
