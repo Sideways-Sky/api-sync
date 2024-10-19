@@ -12,11 +12,10 @@
 		"robo.js",
 		"typescript"
 	],
-	"main": ".robo/build/index.js",
 	"license": "MIT",
-	"author": "Sideways Sky",
+	"author": "sideways-sky",
 	"contributors": [
-		"Sideways Sky"
+		"sideways-sky"
 	],
 	"files": [
 		".robo/",
@@ -35,6 +34,10 @@
 		"lint:eslint": "eslint -c config/eslint.mjs .",
 		"lint:style": "prettier --write .",
 		"prepublishOnly": "robo build plugin"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Sideways-Sky/api-sync.git"
 	},
 	"dependencies": {
 		"nanoid": "^5.0.7",

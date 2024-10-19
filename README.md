@@ -6,6 +6,8 @@
 
 Welcome to _api-sync_! Real-time state sync across clients and server the simplest way possible. Perfect for multiplayer games and chat apps. It's like magic, but real! 🎩✨
 
+> # ⚠️ Under development; Not ready for production, unstable, and subject to change.
+
 ➞ [📚 **Documentation:** Getting started](https://docs.roboplay.dev/docs/getting-started)
 
 ➞ [🚀 **Community:** Join our Discord server](https://roboplay.dev/discord)
@@ -28,20 +30,19 @@ npx robo add api-sync
 
 ```ts
 // src/events/_start.ts
-import { SyncServer } from 'api-sync/server.js'
-import { syncApi, Api, SyncState } from '../syncApi'
+import { SyncServer, Api, SyncState } from 'api-sync/server.js'
 
 const myApi = {
 	hello: (sessionId) => {
 		console.log('Hello from', sessionId)
-	}
-    counter: new SyncState<number>()
+	},
+	counter: new SyncState<number>()
 } satisfies Api
 
 export type MyApi = typeof myApi
 
 export default async () => {
-	SyncServer.defineApi(syncApi)
+	SyncServer.defineApi(myApi)
 }
 ```
 
