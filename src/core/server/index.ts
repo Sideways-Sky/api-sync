@@ -24,7 +24,8 @@ export type Api = NestedRecord<
 > & {
 	internal?: {
 		onJoin?: (sessionId: string) => void
-		onLeave?: (sessionId: string) => void
+		onAfterLeave?: (sessionId: string) => void
+		onBeforeLeave?: (sessionId: string) => void
 	}
 }
 
@@ -57,7 +58,7 @@ function createSocketServer(api: Api) {
 		_connections.forEach((conn, index) => {
 			if (!conn.isAlive) {
 				syncLogger.warn(`Connection ${conn.id} is dead. Terminating...`)
-				api.internal?.onLeave?.(conn.id)
+				api.internal?.onBeforeLeave?.(conn.id)
 
 				conn.ws.terminate()
 				deadIndices.push(index)
@@ -71,7 +72,8 @@ function createSocketServer(api: Api) {
 
 		// Remove dead connections
 		deadIndices.forEach((index) => {
-			_connections.splice(index, 1)
+			const conn = _connections.splice(index, 1)[0]
+			api.internal?.onAfterLeave?.(conn.id)
 		})
 	}, 30_000)
 
@@ -87,11 +89,13 @@ function createSocketServer(api: Api) {
 		ws.on('close', () => {
 			const index = _connections.findIndex((c) => c.id === connection.id)
 			syncLogger.debug(`Connection ${connection.id} closed. Removing...`)
-			api.internal?.onLeave?.(connection.id)
+			api.internal?.onBeforeLeave?.(connection.id)
 
 			if (index > -1) {
 				_connections.splice(index, 1)
 			}
+
+			api.internal?.onAfterLeave?.(connection.id)
 		})
 
 		ws.on('message', (message) => {

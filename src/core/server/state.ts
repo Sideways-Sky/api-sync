@@ -23,7 +23,7 @@ export class SyncState<T> {
 	}
 
 	set(newState: T | undefined, depend?: string, force?: boolean) {
-		if (newState === this._state && !force) {
+		if (newState === this._state[depend || ''] && !force) {
 			return
 		}
 		if (newState === undefined) {
