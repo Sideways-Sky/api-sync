@@ -111,6 +111,8 @@ function setupSyncState<API extends Api>(): ClientContext<API> {
 			const payload = JSON.parse(event.data) as ServerMessagePayload
 			let response: ClientMessagePayload | null = null
 
+			console.log('Received message from server:', payload)
+
 			switch (payload.type) {
 				case 'ping':
 					response = { data: undefined, type: 'pong' }
