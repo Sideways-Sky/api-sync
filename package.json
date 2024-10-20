@@ -1,7 +1,7 @@
 {
 	"name": "api-sync-robojs",
 	"description": "",
-	"version": "0.1.0",
+	"version": "0.1.2",
 	"type": "module",
 	"private": false,
 	"keywords": [
@@ -19,9 +19,12 @@
 	],
 	"files": [
 		".robo/",
-		"src/",
 		"LICENSE",
-		"README.md"
+		"README.md",
+		"server.js",
+		"server.d.ts",
+		"client.js",
+		"client.d.ts"
 	],
 	"publishConfig": {
 		"access": "public",

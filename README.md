@@ -8,25 +8,25 @@ Welcome to _api-sync_! Real-time state sync across clients and server the simple
 
 > # ⚠️ Under development; Not ready for production, unstable, and subject to change.
 
-➞ [📚 **Documentation:** Getting started](https://docs.roboplay.dev/docs/getting-started)
+New to Robo.js?
 
-➞ [🚀 **Community:** Join our Discord server](https://roboplay.dev/discord)
+➞ [📚 **Robo.js Documentation:** Getting started](https://docs.roboplay.dev/docs/getting-started)
 
-> 👩‍💻 **Are you the plugin developer?** Check out the **[Development Guide](DEVELOPMENT.md)** for instructions on how to develop, build, and publish this plugin.
+➞ [🚀 **Robo.js Community:** Join Discord server](https://roboplay.dev/discord)
 
 ## Installation
 
 To add this plugin to your Robo.js project:
 
 ```bash
-npx robo add api-sync
+npx robo add api-sync-robojs
 ```
 
-> **Note:** You will also need to install the `@robojs/server`.
+> **Note:** You will also need to install the `@robojs/server` (v1.6.1 or greater)
 
 ## Usage 🎨
 
-### server
+### Server
 
 ```ts
 // src/events/_start.ts
@@ -46,7 +46,7 @@ export default async () => {
 }
 ```
 
-### client
+### Client
 
 setup client api provider
 
