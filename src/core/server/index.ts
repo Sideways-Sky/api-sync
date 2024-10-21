@@ -1,5 +1,5 @@
 import { syncLogger } from './logger.js'
-import { ready, Server } from '@robojs/server'
+import { Server } from '@robojs/server'
 import { NodeEngine } from '@robojs/server/engines.js'
 import { nanoid } from 'nanoid'
 import WebSocket, { WebSocketServer } from 'ws'
@@ -20,28 +20,28 @@ export const _connections: Array<Connection> = []
 type NestedRecord<K extends keyof any, T> = { [P in K]: T | NestedRecord<K, T> }
 export type Api = NestedRecord<
 	string | symbol | number,
-	((sessionId: string, ...args: any[]) => any) | SyncState<any>
+	((this: Connection, ...args: any[]) => any) | SyncState<any>
 > & {
 	internal?: {
-		onJoin?: (sessionId: string) => void
-		onAfterLeave?: (sessionId: string) => void
-		onBeforeLeave?: (sessionId: string) => void
+		onJoin?: (connection: Connection) => void
+		onAfterLeave?: (connection: Connection) => void
+		onBeforeLeave?: (connection: Connection) => void
 	}
 }
 
 let _wss: WebSocketServer | undefined
 
 // Should only be called once on the server
-async function defineApi(api: Api) {
+async function defineApi(api: Api, path: string = '/api-sync') {
 	setKeys(api, '')
-	await ready()
+	await Server.ready()
 	syncLogger.debug('Creating WebSocket server')
-	createSocketServer(api)
+	createSocketServer(api, path)
 	syncLogger.debug('WebSocket server created successfully.')
 	syncLogger.ready('API Sync is live')
 }
 
-function createSocketServer(api: Api) {
+function createSocketServer(api: Api, path: string) {
 	// Create WebSocket server piggybacking on the HTTP server
 	_wss = new WebSocketServer({
 		noServer: true
@@ -58,7 +58,7 @@ function createSocketServer(api: Api) {
 		_connections.forEach((conn, index) => {
 			if (!conn.isAlive) {
 				syncLogger.warn(`Connection ${conn.id} is dead. Terminating...`)
-				api.internal?.onBeforeLeave?.(conn.id)
+				api.internal?.onBeforeLeave?.(conn)
 
 				conn.ws.terminate()
 				deadIndices.push(index)
@@ -73,7 +73,7 @@ function createSocketServer(api: Api) {
 		// Remove dead connections
 		deadIndices.forEach((index) => {
 			const conn = _connections.splice(index, 1)[0]
-			api.internal?.onAfterLeave?.(conn.id)
+			api.internal?.onAfterLeave?.(conn)
 		})
 	}, 30_000)
 
@@ -83,19 +83,19 @@ function createSocketServer(api: Api) {
 		const connection: Connection = { id: nanoid(), isAlive: true, watch: [], ws }
 		_connections.push(connection)
 		syncLogger.debug('New connection established! Registered as', connection.id)
-		api.internal?.onJoin?.(connection.id)
+		api.internal?.onJoin?.(connection)
 
 		// Detect disconnections
 		ws.on('close', () => {
 			const index = _connections.findIndex((c) => c.id === connection.id)
 			syncLogger.debug(`Connection ${connection.id} closed. Removing...`)
-			api.internal?.onBeforeLeave?.(connection.id)
+			api.internal?.onBeforeLeave?.(connection)
 
 			if (index > -1) {
 				_connections.splice(index, 1)
 			}
 
-			api.internal?.onAfterLeave?.(connection.id)
+			api.internal?.onAfterLeave?.(connection)
 		})
 
 		ws.on('message', (message) => {
@@ -189,7 +189,7 @@ function createSocketServer(api: Api) {
 
 					try {
 						// @ts-ignore
-						const result = procedure(connection.id, ...params)
+						const result = procedure.call(connection, ...params)
 						syncLogger.debug(`result for method ${path}`, { result })
 
 						response = {
@@ -223,7 +223,7 @@ function createSocketServer(api: Api) {
 
 	// Handle upgrade requests
 	const engine = Server.get() as NodeEngine
-	engine.registerWebsocket('/sync', (req, socket, head) => {
+	engine.registerWebsocket(path, (req, socket, head) => {
 		const wss = getSocketServer()
 		wss?.handleUpgrade(req, socket, head, function done(ws) {
 			wss?.emit('connection', ws, req)

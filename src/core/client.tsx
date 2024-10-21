@@ -10,7 +10,7 @@ interface ClientContext<API extends Api> {
 	ClientProxy?: Client<API>
 }
 
-export function createApiClient<API extends Api>() {
+export function createApiClient<API extends Api>(path: string = '/api-sync') {
 	const Context = createContext<ClientContext<any>>({
 		connected: false,
 		ws: null as WebSocket | null
@@ -18,7 +18,7 @@ export function createApiClient<API extends Api>() {
 
 	function ApiContextProvider(props: { children: React.ReactNode; loadingScreen?: React.ReactNode }) {
 		const { children, loadingScreen = null } = props
-		const context = setupSyncState()
+		const context = setupSyncState(path)
 
 		if (loadingScreen && (!context.connected || !context.ws)) {
 			return <>{loadingScreen}</>
@@ -71,7 +71,7 @@ export type Client<T extends Api> = {
 
 const queue: { [key: string]: (value: unknown) => void } = {}
 
-function setupSyncState<API extends Api>(): ClientContext<API> {
+function setupSyncState<API extends Api>(path: string = '/api-sync'): ClientContext<API> {
 	const [ws, setWs] = useState<WebSocket | null>(null)
 	const [connected, setConnected] = useState(false)
 	const cache = useRef<Record<string, unknown>>({}).current
@@ -86,7 +86,7 @@ function setupSyncState<API extends Api>(): ClientContext<API> {
 
 		isRunning.current = true
 		const wsProtocol = location.protocol === 'http:' ? 'ws' : 'wss'
-		const websocket = new WebSocket(`${wsProtocol}://${location.host}/sync`)
+		const websocket = new WebSocket(`${wsProtocol}://${location.host}/${path}`)
 
 		websocket.onopen = () => {
 			console.log('Connection established at', new Date().toISOString())

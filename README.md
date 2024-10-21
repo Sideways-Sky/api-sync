@@ -33,8 +33,8 @@ npx robo add api-sync-robojs
 import { SyncServer, Api, SyncState } from 'api-sync/server.js'
 
 const myApi = {
-	hello: (sessionId) => {
-		console.log('Hello from', sessionId)
+	hello() {
+		console.log('Hello from', this.id) // connection id
 	},
 	counter: new SyncState<number>()
 } satisfies Api
