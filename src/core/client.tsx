@@ -46,13 +46,13 @@ let IdCounter = 0
 
 export type Client<T extends Api> = {
 	// For each key in the input type `T`, `K`, determine the type of the corresponding value
-	[K in keyof T]-?: T[K] extends (sessionId: string, ...args: infer P) => any
+	[K in keyof T]-?: T[K] extends (...args: any) => any
 		? // If the value is a function,
 			ReturnType<T[K]> extends Promise<any>
 			? // If the return type of the function is already a Promise, leave it as-is
-				(...args: P) => ReturnType<T[K]>
+				T[K]
 			: // Otherwise, convert the function to return a Promise
-				(...args: P) => Promise<ReturnType<T[K]>>
+				(...args: Parameters<T[K]>) => Promise<ReturnType<T[K]>>
 		: // If the value is a SyncState, return a function that returns the state
 			T[K] extends SyncState<infer X>
 			? {
