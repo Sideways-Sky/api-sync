@@ -10,7 +10,7 @@ interface ClientContext<API extends Api> {
 	ClientProxy?: Client<API>
 }
 
-export function createApiClient<API extends Api>(path: string = '/api-sync') {
+export function createApiClient<API extends Api>(path: string = 'api-sync') {
 	const Context = createContext<ClientContext<any>>({
 		connected: false,
 		ws: null as WebSocket | null
@@ -44,7 +44,9 @@ type UpdateCallback = (data: unknown, key: string) => void
 
 let IdCounter = 0
 
-export type Client<T extends Api> = {
+export type Client<T extends Api> = ClientApi<Omit<T, 'internal'>>
+
+type ClientApi<T extends Api> = {
 	// For each key in the input type `T`, `K`, determine the type of the corresponding value
 	[K in keyof T]-?: T[K] extends (this: any, ...args: infer P) => any
 		? // If the value is a function,
@@ -71,7 +73,7 @@ export type Client<T extends Api> = {
 
 const queue: { [key: string]: (value: unknown) => void } = {}
 
-function setupSyncState<API extends Api>(path: string = '/api-sync'): ClientContext<API> {
+function setupSyncState<API extends Api>(path: string = 'api-sync'): ClientContext<API> {
 	const [ws, setWs] = useState<WebSocket | null>(null)
 	const [connected, setConnected] = useState(false)
 	const cache = useRef<Record<string, unknown>>({}).current
@@ -103,7 +105,7 @@ function setupSyncState<API extends Api>(path: string = '/api-sync'): ClientCont
 		}
 
 		websocket.onmessage = (event) => {
-			// Only handle parseable messages
+			// Only handle parsable messages
 			if (typeof event.data !== 'string') {
 				return
 			}

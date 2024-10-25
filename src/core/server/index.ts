@@ -33,7 +33,7 @@ let _wss: WebSocketServer | undefined
 
 // Should only be called once on the server
 async function defineApi(api: Api, path: string = '/api-sync') {
-	setKeys(api, '')
+	setKeys(api, [])
 	await Server.ready()
 	syncLogger.debug('Creating WebSocket server')
 	createSocketServer(api, path)
@@ -236,11 +236,11 @@ function getSocketServer() {
 }
 
 // Set SyncState keys based on the path
-function setKeys(api: Api, path: string) {
+function setKeys(api: Api, path: string[]) {
 	for (const key of Object.keys(api)) {
 		const newPath = path.concat(key)
 		if (api[key] instanceof SyncState) {
-			api[key].setKey(newPath)
+			api[key].setKey(newPath.join('.'))
 		} else if (typeof api[key] === 'object') {
 			setKeys(api[key], newPath)
 		}
