@@ -1,7 +1,7 @@
 {
 	"name": "api-sync-robojs",
 	"description": "",
-	"version": "0.1.9",
+	"version": "0.1.10",
 	"type": "module",
 	"private": false,
 	"keywords": [
@@ -43,14 +43,14 @@
 		"url": "git+https://github.com/Sideways-Sky/api-sync.git"
 	},
 	"dependencies": {
-		"nanoid": "^5.0.7",
+		"nanoid": "^5.0.8",
 		"ws": "^8.18.0"
 	},
 	"devDependencies": {
-		"@robojs/server": "^0.6.1",
+		"@robojs/server": "^0.6.2",
 		"@swc/core": "latest",
 		"@types/node": "latest",
-		"@types/react": "^18.3.11",
+		"@types/react": "^18.3.12",
 		"@types/ws": "^8.5.12",
 		"discord.js": "latest",
 		"prettier": "latest",

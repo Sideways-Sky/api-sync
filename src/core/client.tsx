@@ -18,7 +18,7 @@ export function createApiClient<API extends Api>(path: string = 'api-sync', debu
 
 	function ApiContextProvider(props: { children: React.ReactNode; loadingScreen?: React.ReactNode }) {
 		const { children, loadingScreen = null } = props
-		const context = setupSyncState(path)
+		const context = setupSyncState<API>(path, debug)
 
 		if (loadingScreen && (!context.connected || !context.ws)) {
 			return <>{loadingScreen}</>

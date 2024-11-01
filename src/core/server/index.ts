@@ -32,7 +32,7 @@ export type Api = NestedRecord<
 let _wss: WebSocketServer | undefined
 
 // Should only be called once on the server
-async function defineApi(api: Api, path: string = '/api-sync') {
+async function defineApi(api: Api, path: string = 'api-sync') {
 	setKeys(api, [])
 	await Server.ready()
 	syncLogger.debug('Creating WebSocket server')
