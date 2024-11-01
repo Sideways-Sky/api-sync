@@ -6,7 +6,7 @@
 
 Welcome to _api-sync_! Real-time state sync across clients and server the simplest way possible. Perfect for multiplayer games and chat apps. It's like magic, but real! 🎩✨
 
-> # ⚠️ Under development; Not ready for production, unstable, and subject to change.
+> # ⚠️ Under development; Not ready for production and subject to change.
 
 New to Robo.js?
 

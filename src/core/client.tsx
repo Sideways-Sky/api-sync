@@ -62,6 +62,10 @@ type ClientApi<T extends Api> = {
 						useSync: (depend?: string) => X | undefined
 						key: string
 						sub: (callback: (data: X) => void, depend?: string) => () => void
+						cache: {
+							get: (depend?: string) => X | undefined
+							set: (value: X, depend?: string) => void
+						}
 					}
 				}
 			: // If the value is an object, recursively convert it to a Client
@@ -251,6 +255,28 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 							return () => {
 								debug && console.log('Un-registering callback (in sub) for', key)
 								unregisterCallback(callbackId)
+							}
+						},
+						cache: {
+							get: (depend?: string) => {
+								const key = path + (depend ? '|' + depend : '')
+								return cache[key]
+							},
+							set: (data: unknown, depend?: string) => {
+								const key = path + (depend ? '|' + depend : '')
+								// Broadcast the update to all callbacks
+								if (callbacks[key]) {
+									callbacks[key].forEach((callback) => {
+										try {
+											callback(data, key)
+										} catch (error) {
+											console.error('Callback error:', error)
+										}
+									})
+								}
+
+								// Cache the data
+								cache[key] = data
 							}
 						}
 					}
