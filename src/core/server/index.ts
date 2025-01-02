@@ -4,7 +4,7 @@ import { NodeEngine } from '@robojs/server/engines.js'
 import { nanoid } from 'nanoid'
 import WebSocket, { WebSocketServer } from 'ws'
 import { ClientMessagePayload, FunctionCall, FunctionResponse, ServerMessagePayload } from '../types.js'
-import { _states, SyncState } from './state.js'
+import { _states, SyncSignal } from './state.js'
 
 export const SyncServer = { getSocketServer, defineApi }
 
@@ -20,7 +20,7 @@ export const _connections: Array<Connection> = []
 type NestedRecord<K extends keyof any, T> = { [P in K]: T | NestedRecord<K, T> }
 export type Api = NestedRecord<
 	string | symbol | number,
-	((this: Connection, ...args: any[]) => any) | SyncState<any>
+	((this: Connection, ...args: any[]) => any) | SyncSignal<any>
 > & {
 	internal?: {
 		onJoin?: (connection: Connection) => void
@@ -235,11 +235,11 @@ function getSocketServer() {
 	return _wss
 }
 
-// Set SyncState keys based on the path
+// Set SyncSignal keys based on the path
 function setKeys(api: Api, path: string[]) {
 	for (const key of Object.keys(api)) {
 		const newPath = path.concat(key)
-		if (api[key] instanceof SyncState) {
+		if (api[key] instanceof SyncSignal) {
 			api[key].setKey(newPath.join('.'))
 		} else if (typeof api[key] === 'object') {
 			setKeys(api[key], newPath)
