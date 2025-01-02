@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { ClientMessagePayload, FunctionCall, FunctionResponse, ServerMessagePayload } from './types'
-import type { SyncState } from './server/state'
+import type { SyncSignal, SyncState } from './server/state'
 import { Api } from './server'
 import { nanoid } from 'nanoid'
+
+// TODO: Finish client side signal subscriptions
 
 interface ClientContext<API extends Api> {
 	connected: boolean
@@ -40,11 +42,24 @@ export function createApiClient<API extends Api>(path: string = 'api-sync', debu
 }
 
 type CallbackEntry = { key: string; callback: UpdateCallback }
-type UpdateCallback = (data: unknown, key: string) => void
+type UpdateCallback = { func: (data: unknown, key: string) => void; cached: boolean }
 
 let IdCounter = 0
 
 export type Client<T extends Api> = ClientApi<Omit<T, 'internal'>>
+
+type ClientSyncSignal<X> = {
+	key: string
+	sub: (callback: (data: X) => void, depend?: string) => () => void
+}
+
+type ClientSyncState<X> = {
+	useSync: (depend?: string) => X | undefined
+	cache: {
+		get: (depend?: string) => X | undefined
+		set: (value: X, depend?: string) => void
+	}
+} & ClientSyncSignal<X>
 
 type ClientApi<T extends Api> = {
 	// For each key in the input type `T`, `K`, determine the type of the corresponding value
@@ -56,18 +71,14 @@ type ClientApi<T extends Api> = {
 			: // Otherwise, convert the function to return a Promise
 				(...args: P) => Promise<ReturnType<T[K]>>
 		: // If the value is a SyncState, return a function that returns the state
-			T[K] extends SyncState<infer X>
-			? {
-					$: {
-						useSync: (depend?: string) => X | undefined
-						key: string
-						sub: (callback: (data: X) => void, depend?: string) => () => void
-						cache: {
-							get: (depend?: string) => X | undefined
-							set: (value: X, depend?: string) => void
-						}
+			T[K] extends SyncSignal<infer X>
+			? T[K] extends SyncState<infer X>
+				? {
+						$: ClientSyncState<X>
 					}
-				}
+				: {
+						$$: ClientSyncSignal<X>
+					}
 			: // If the value is an object, recursively convert it to a Client
 				T[K] extends object
 				? // @ts-ignore // Ts doesn't like the recursive type
@@ -131,19 +142,26 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 						break
 					}
 
+					let cached = false
+
 					// Broadcast the update to all callbacks
 					if (callbacks[key]) {
 						callbacks[key].forEach((callback) => {
 							try {
-								callback(data, key)
+								callback.func(data, key)
 							} catch (error) {
 								console.error('Callback error:', error)
+							}
+							if (callback.cached) {
+								cached = true
 							}
 						})
 					}
 
-					// Cache the data
-					cache[key] = data
+					if (cached) {
+						// Cache the data
+						cache[key] = data
+					}
 					break
 				}
 				case 'function-response': {
@@ -188,9 +206,9 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 		// Listen for updates to the key if first callback
 		if (callbacks[key].length === 1) {
 			ws?.send(JSON.stringify({ key, type: 'on' } as ClientMessagePayload))
-		} else {
+		} else if (callback.cached) {
 			// Apply last known state to the new callback
-			callback(cache[key], key)
+			callback.func(cache[key], key)
 		}
 
 		return callbackId
@@ -218,6 +236,27 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 				if (String(prop) === '$') {
 					return {
 						key: path,
+						sub: (callback: (data: unknown) => void, depend?: string) => {
+							const key = path + (depend ? '|' + depend : '')
+							debug && console.log('Registering callback (in sub) for', key)
+							const callbackId = registerCallback(key, {
+								func: (data, key) => {
+									if (key === key) {
+										callback(data)
+									}
+								},
+								cached: false
+							})
+
+							return () => {
+								debug && console.log('Un-registering callback (in sub) for', key)
+								unregisterCallback(callbackId)
+							}
+						}
+					}
+				} else if (String(prop) === '$$') {
+					return {
+						key: path,
 						useSync: (depend?: string) => {
 							const key = path + (depend ? '|' + depend : '')
 							const [state, setState] = useState<unknown>()
@@ -227,10 +266,13 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 								if (connected && hasWs) {
 									// Register the callback to update the state
 									debug && console.log('Registering callback (in useSync) for', key)
-									const callbackId = registerCallback(key, (data, key) => {
-										if (key === key) {
-											setState(data)
-										}
+									const callbackId = registerCallback(key, {
+										func: (data, key) => {
+											if (key === key) {
+												setState(data)
+											}
+										},
+										cached: true
 									})
 
 									// Unregister the callback when the component unmounts
@@ -246,10 +288,13 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 						sub: (callback: (data: unknown) => void, depend?: string) => {
 							const key = path + (depend ? '|' + depend : '')
 							debug && console.log('Registering callback (in sub) for', key)
-							const callbackId = registerCallback(key, (data, key) => {
-								if (key === key) {
-									callback(data)
-								}
+							const callbackId = registerCallback(key, {
+								func: (data, key) => {
+									if (key === key) {
+										callback(data)
+									}
+								},
+								cached: false
 							})
 
 							return () => {
@@ -268,7 +313,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 								if (callbacks[key]) {
 									callbacks[key].forEach((callback) => {
 										try {
-											callback(data, key)
+											callback.func(data, key)
 										} catch (error) {
 											console.error('Callback error:', error)
 										}
