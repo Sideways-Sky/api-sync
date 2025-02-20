@@ -74,10 +74,10 @@ type ClientApi<T extends Api> = {
 			T[K] extends SyncSignal<infer X>
 			? T[K] extends SyncState<infer X>
 				? {
-						$: ClientSyncState<X>
+						$$: ClientSyncState<X>
 					}
 				: {
-						$$: ClientSyncSignal<X>
+						$: ClientSyncSignal<X>
 					}
 			: // If the value is an object, recursively convert it to a Client
 				T[K] extends object

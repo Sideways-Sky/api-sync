@@ -12,7 +12,7 @@ export class SyncSignal<T> {
 		this.key = key
 	}
 
-	emit(data: T | undefined, depend?: string) {
+	emit(data: T | undefined, depend?: string, onlyForConnectionID?: string) {
 		const key = this.key
 		if (!key) {
 			console.error('No key provided for state update')
@@ -22,7 +22,12 @@ export class SyncSignal<T> {
 		const fullKey = key + (depend ? '|' + depend : '')
 
 		const broadcastResult = _connections
-			.filter((c) => c.watch.includes(fullKey))
+			.filter((c) => {
+				if (onlyForConnectionID && c.id !== onlyForConnectionID) {
+					return false
+				}
+				return c.watch.includes(fullKey)
+			})
 			.map((c) => {
 				syncLogger.debug(`Broadcasting ${color.bold(fullKey)} update to:`, c.id)
 				const broadcast: ServerMessagePayload<T> = { data, key: fullKey, type: 'update' }

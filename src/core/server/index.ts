@@ -36,7 +36,7 @@ async function defineApi(api: Api, path: string = 'api-sync') {
 	setKeys(api, [])
 	await Server.ready()
 	syncLogger.debug('Creating WebSocket server')
-	createSocketServer(api, path)
+	createSocketServer(api, '/' + path)
 	syncLogger.debug('WebSocket server created successfully.')
 	syncLogger.ready('API Sync is live')
 }
