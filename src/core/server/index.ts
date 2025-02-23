@@ -169,7 +169,7 @@ function createSocketServer(api: Api, path: string) {
 				}
 				case 'function-call': {
 					if (!data) {
-						console.error('Payload data is missing in function-call!')
+						syncLogger.error('Payload data is missing in function-call!')
 						break
 					}
 					const { path, params } = data as FunctionCall
@@ -202,7 +202,7 @@ function createSocketServer(api: Api, path: string) {
 							}
 						} satisfies ServerMessagePayload<FunctionResponse>
 					} catch (error: any) {
-						console.error(error)
+						syncLogger.error(error)
 						response = {
 							type: 'function-response',
 							key,

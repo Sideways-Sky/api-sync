@@ -6,7 +6,7 @@
 
 Welcome to _api-sync_! Real-time state sync across clients and server the simplest way possible. Perfect for multiplayer games and chat apps. It's like magic, but real! 🎩✨
 
-> # ⚠️ Under development; Not ready for production and subject to change.
+> ## ⚠️ Under development; Not ready for production and subject to change.
 
 New to Robo.js?
 
@@ -22,7 +22,7 @@ To add this plugin to your Robo.js project:
 npx robo add api-sync-robojs
 ```
 
-> **Note:** You will also need to install the `@robojs/server` (v1.6.1 or greater)
+> **Note:** You will also need to install the `@robojs/server` v1.6.1 or greater (@latest is recommended)
 
 ## Usage 🎨
 
@@ -78,7 +78,7 @@ import { useApi } from '.App'
 
 export default function Activity() {
 	const api = useApi()
-	const counter = api.counter.$.useSync()
+	const counter = api.counter.use()
 
 	useEffect(() => {
 		api.hello()

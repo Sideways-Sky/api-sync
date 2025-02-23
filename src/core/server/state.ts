@@ -14,7 +14,7 @@ export class SyncSignal<T> {
 
 	emit(data: T | undefined, depend?: string) {
 		if (!this.key) {
-			console.error('No key provided for emit')
+			syncLogger.error('Internal: No key provided for emit')
 			return
 		}
 
@@ -34,7 +34,7 @@ export class SyncSignal<T> {
 
 	advancedEmit(process: (connection: Connection, send: (data: T | undefined) => void) => void, depend?: string) {
 		if (!this.key) {
-			console.error('No key provided for state advanced update')
+			syncLogger.error('Internal: No key provided for state advanced update')
 			return
 		}
 
