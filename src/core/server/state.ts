@@ -1,7 +1,7 @@
 import { color } from 'robo.js'
 import { ServerMessagePayload } from '../types'
+import { _connections, Connection } from '.'
 import { syncLogger } from './logger'
-import { _connections, Connection } from './'
 
 export const _states: Record<string, BaseSyncState<any>> = {}
 
@@ -13,13 +13,12 @@ export class SyncSignal<T> {
 	}
 
 	emit(data: T | undefined, depend?: string) {
-		const key = this.key
-		if (!key) {
-			console.error('No key provided for state update')
+		if (!this.key) {
+			console.error('No key provided for emit')
 			return
 		}
 
-		const fullKey = key + (depend ? '|' + depend : '')
+		const fullKey = this.key + (depend ? '|' + depend : '')
 
 		const broadcastResult = _connections
 			.filter((c) => {
@@ -34,13 +33,12 @@ export class SyncSignal<T> {
 	}
 
 	advancedEmit(process: (connection: Connection, send: (data: T | undefined) => void) => void, depend?: string) {
-		const key = this.key
-		if (!key) {
+		if (!this.key) {
 			console.error('No key provided for state advanced update')
 			return
 		}
 
-		const fullKey = key + (depend ? '|' + depend : '')
+		const fullKey = this.key + (depend ? '|' + depend : '')
 		_connections
 			.filter((c) => {
 				return c.watch.includes(fullKey)
@@ -57,6 +55,11 @@ export class SyncSignal<T> {
 
 export abstract class BaseSyncState<T> extends SyncSignal<T> {
 	abstract syncGet(connection: Connection, depend?: string): T | undefined
+
+	override setKey(key: string): void {
+		super.setKey(key)
+		_states[key] = this
+	}
 }
 
 export class SyncState<T> extends BaseSyncState<T> {

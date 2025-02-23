@@ -8,7 +8,7 @@ export interface ServerMessagePayload<T = unknown> {
 	// From server to client
 	data?: T
 	key?: string
-	type: 'ping' | 'update' | 'function-response' | 'dispatch'
+	type: 'ping' | 'update' | 'function-response' | 'schema'
 }
 export interface FunctionResponse {
 	result?: unknown

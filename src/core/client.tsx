@@ -5,8 +5,7 @@ import { Api } from './server'
 import { nanoid } from 'nanoid'
 
 interface ClientContext<API extends Api> {
-	connected: boolean
-	ws: WebSocket | null
+	loading: boolean
 	ClientProxy?: Client<API>
 }
 
@@ -22,16 +21,16 @@ function debugCheck(debugType: debugEntry, debug?: debugType) {
 
 export function createApiClient<API extends Api>(path: string = 'api-sync', debug?: debugType) {
 	const Context = createContext<ClientContext<any>>({
-		connected: false,
-		ws: null as WebSocket | null
+		loading: true
 	})
 
-	function ApiContextProvider(props: { children: React.ReactNode; loadingScreen?: React.ReactNode }) {
-		const { children, loadingScreen = null } = props
+	function ApiContextProvider(props: { children: React.ReactNode; loading?: React.ReactNode }) {
+		const { children, loading } = props
+
 		const context = setupSyncState<API>(path, debug)
 
-		if (loadingScreen && (!context.connected || !context.ws)) {
-			return <>{loadingScreen}</>
+		if (context.loading) {
+			return loading
 		}
 
 		//@ts-ignore
@@ -62,7 +61,7 @@ type ClientSyncSignal<X> = {
 }
 
 type ClientSyncState<X> = {
-	useSync: (depend?: string) => X | undefined
+	use: (depend?: string) => X | undefined
 	cache: {
 		get: (depend?: string) => X | undefined
 		set: (value: X, depend?: string) => void
@@ -81,12 +80,8 @@ type ClientApi<T extends Api> = {
 		: // If the value is a SyncState, return a function that returns the state
 			T[K] extends SyncSignal<infer X>
 			? T[K] extends BaseSyncState<infer X>
-				? {
-						$$: ClientSyncState<X>
-					}
-				: {
-						$: ClientSyncSignal<X>
-					}
+				? ClientSyncState<X>
+				: ClientSyncSignal<X>
 			: // If the value is an object, recursively convert it to a Client
 				T[K] extends object
 				? // @ts-ignore // Ts doesn't like the recursive type
@@ -98,7 +93,7 @@ const queue: { [key: string]: (value: unknown) => void } = {}
 
 function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: debugType): ClientContext<API> {
 	const [ws, setWs] = useState<WebSocket | null>(null)
-	const [connected, setConnected] = useState(false)
+	const [schema, setSchema] = useState<Record<string, string>>()
 	const cache = useRef<Record<string, unknown>>({}).current
 	const callbacks = useRef<Record<string, UpdateCallback[]>>({}).current
 	const callbackMap = useRef<Record<string, CallbackEntry>>({}).current
@@ -115,12 +110,13 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: debu
 
 		websocket.onopen = () => {
 			debugCheck('connection', debug) && console.log('Connection established at', new Date().toISOString())
-			setConnected(true)
+			// setConnected(true)
 		}
 
 		websocket.onclose = () => {
 			debugCheck('connection', debug) && console.log('Connection closed at', new Date().toISOString())
-			setConnected(false)
+			setSchema(undefined)
+			// setConnected(false)
 		}
 
 		websocket.onerror = (error) => {
@@ -142,6 +138,10 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: debu
 				case 'ping':
 					response = { data: undefined, type: 'pong' }
 					break
+				case 'schema': {
+					setSchema(payload.data as Record<string, string>)
+					break
+				}
 				case 'update': {
 					const { key, data } = payload
 
@@ -197,6 +197,12 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: debu
 		setWs(websocket)
 	}, [])
 
+	if (!schema || !ws) {
+		return {
+			loading: true
+		}
+	}
+
 	const registerCallback = (key: string, callback: UpdateCallback) => {
 		const callbackId = '' + IdCounter++
 
@@ -213,7 +219,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: debu
 
 		// Listen for updates to the key if first callback
 		if (callbacks[key].length === 1) {
-			ws?.send(JSON.stringify({ key, type: 'on' } as ClientMessagePayload))
+			ws.send(JSON.stringify({ key, type: 'on' } as ClientMessagePayload))
 		} else if (callback.cached) {
 			// Apply last known state to the new callback
 			callback.func(cache[key], key)
@@ -234,107 +240,105 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: debu
 
 		// Stop listening for updates to the key if last callback
 		if (callbacks[callback.key].length === 0) {
-			ws?.send(JSON.stringify({ key: callback.key, type: 'off' } as ClientMessagePayload))
+			ws.send(JSON.stringify({ key: callback.key, type: 'off' } as ClientMessagePayload))
+		}
+	}
+
+	const getSignal = (path: string) => {
+		return {
+			key: path,
+			sub: (callback: (data: unknown) => void, depend?: string) => {
+				const key = path + (depend ? '|' + depend : '')
+				debugCheck('callbacks', debug) && console.log('add callback (sub): ', key)
+				const callbackId = registerCallback(key, {
+					func: (data, key) => {
+						if (key === key) {
+							callback(data)
+						}
+					},
+					cached: false
+				})
+
+				return () => {
+					debugCheck('callbacks', debug) && console.log('remove callback (sub): ', key)
+					unregisterCallback(callbackId)
+				}
+			}
+		}
+	}
+	const getState = (path: string) => {
+		return {
+			...getSignal(path),
+			use: (depend?: string) => {
+				const key = path + (depend ? '|' + depend : '')
+				const [state, setState] = useState<unknown>()
+				const hasWs = !!ws
+
+				useEffect(() => {
+					if (schema && hasWs) {
+						// Register the callback to update the state
+						debugCheck('callbacks', debug) && console.log('add callback (useSync): ', key)
+						const callbackId = registerCallback(key, {
+							func: (data, key) => {
+								if (key === key) {
+									setState(data)
+								}
+							},
+							cached: true
+						})
+
+						// Unregister the callback when the component unmounts
+						return () => {
+							debugCheck('callbacks', debug) && console.log('remove callback (useSync): ', key)
+							unregisterCallback(callbackId)
+						}
+					}
+				}, [schema, hasWs])
+
+				return state
+			},
+			cache: {
+				get: (depend?: string) => {
+					const key = path + (depend ? '|' + depend : '')
+					return cache[key]
+				},
+				set: (data: unknown, depend?: string) => {
+					const key = path + (depend ? '|' + depend : '')
+					// Broadcast the update to all callbacks
+					if (callbacks[key]) {
+						callbacks[key].forEach((callback) => {
+							try {
+								callback.func(data, key)
+							} catch (error) {
+								console.error('Callback error:', error)
+							}
+						})
+					}
+
+					// Cache the data
+					cache[key] = data
+				}
+			}
 		}
 	}
 
 	function ClientProxy(path: string): unknown {
 		return new Proxy(() => {}, {
 			get: function (_, prop) {
-				if (String(prop) === '$') {
-					return {
-						key: path,
-						sub: (callback: (data: unknown) => void, depend?: string) => {
-							const key = path + (depend ? '|' + depend : '')
-							debugCheck('callbacks', debug) && console.log('add callback (sub): ', key)
-							const callbackId = registerCallback(key, {
-								func: (data, key) => {
-									if (key === key) {
-										callback(data)
-									}
-								},
-								cached: false
-							})
-
-							return () => {
-								debugCheck('callbacks', debug) && console.log('remove callback (sub): ', key)
-								unregisterCallback(callbackId)
-							}
-						}
-					}
-				} else if (String(prop) === '$$') {
-					return {
-						key: path,
-						useSync: (depend?: string) => {
-							const key = path + (depend ? '|' + depend : '')
-							const [state, setState] = useState<unknown>()
-							const hasWs = !!ws
-
-							useEffect(() => {
-								if (connected && hasWs) {
-									// Register the callback to update the state
-									debugCheck('callbacks', debug) && console.log('add callback (useSync): ', key)
-									const callbackId = registerCallback(key, {
-										func: (data, key) => {
-											if (key === key) {
-												setState(data)
-											}
-										},
-										cached: true
-									})
-
-									// Unregister the callback when the component unmounts
-									return () => {
-										debugCheck('callbacks', debug) && console.log('remove callback (useSync): ', key)
-										unregisterCallback(callbackId)
-									}
-								}
-							}, [connected, hasWs])
-
-							return state
-						},
-						sub: (callback: (data: unknown) => void, depend?: string) => {
-							const key = path + (depend ? '|' + depend : '')
-							debugCheck('callbacks', debug) && console.log('add callback (sub): ', key)
-							const callbackId = registerCallback(key, {
-								func: (data, key) => {
-									if (key === key) {
-										callback(data)
-									}
-								},
-								cached: false
-							})
-
-							return () => {
-								debugCheck('callbacks', debug) && console.log('remove callback (sub): ', key)
-								unregisterCallback(callbackId)
-							}
-						},
-						cache: {
-							get: (depend?: string) => {
-								const key = path + (depend ? '|' + depend : '')
-								return cache[key]
-							},
-							set: (data: unknown, depend?: string) => {
-								const key = path + (depend ? '|' + depend : '')
-								// Broadcast the update to all callbacks
-								if (callbacks[key]) {
-									callbacks[key].forEach((callback) => {
-										try {
-											callback.func(data, key)
-										} catch (error) {
-											console.error('Callback error:', error)
-										}
-									})
-								}
-
-								// Cache the data
-								cache[key] = data
-							}
-						}
+				const newPath = path ? `${path}.${String(prop)}` : String(prop)
+				if (!schema) {
+					console.error('Schema not loaded!')
+					return ClientProxy(newPath)
+				}
+				if (schema[newPath]) {
+					const type = schema[newPath]
+					if (type === 'signal') {
+						return getSignal(newPath)
+					} else if (type === 'state') {
+						return getState(newPath)
 					}
 				}
-				return ClientProxy(`${path ? `${path}.` : ''}${String(prop)}`)
+				return ClientProxy(newPath)
 			},
 			apply: function (_, __, argumentsList) {
 				debugCheck('function-call', debug) && console.info(`Called: ${path} with parameters: ${argumentsList}`)
@@ -361,8 +365,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: debu
 	}
 
 	return {
-		connected,
-		ws,
+		loading: false,
 		ClientProxy: ClientProxy('') as Client<API>
 	}
 }

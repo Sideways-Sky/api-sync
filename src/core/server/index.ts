@@ -1,10 +1,10 @@
-import { syncLogger } from './logger.js'
 import { Server } from '@robojs/server'
 import { NodeEngine } from '@robojs/server/engines.js'
 import { nanoid } from 'nanoid'
 import WebSocket, { WebSocketServer } from 'ws'
 import { ClientMessagePayload, FunctionCall, FunctionResponse, ServerMessagePayload } from '../types.js'
-import { _states, SyncSignal } from './state.js'
+import { _states, BaseSyncState, SyncSignal } from './state.js'
+import { syncLogger } from './logger.js'
 
 export const SyncServer = { getSocketServer, defineApi }
 
@@ -33,9 +33,9 @@ let _wss: WebSocketServer | undefined
 
 // Should only be called once on the server
 async function defineApi(api: Api, path: string = 'api-sync') {
-	setKeys(api, [])
+	setup(api)
 	await Server.ready()
-	syncLogger.debug('Creating WebSocket server')
+	syncLogger.debug('Creating WebSocket server. Schema:', schema)
 	createSocketServer(api, '/' + path)
 	syncLogger.debug('WebSocket server created successfully.')
 	syncLogger.ready('API Sync is live')
@@ -46,6 +46,11 @@ function createSocketServer(api: Api, path: string) {
 	_wss = new WebSocketServer({
 		noServer: true
 	})
+
+	const schemaMessage = JSON.stringify({
+		type: 'schema',
+		data: schema
+	} satisfies ServerMessagePayload<Record<string, string>>)
 
 	// Keep track of the connection liveness
 	setInterval(() => {
@@ -83,6 +88,7 @@ function createSocketServer(api: Api, path: string) {
 		const connection: Connection = { id: nanoid(), isAlive: true, watch: [], ws }
 		_connections.push(connection)
 		syncLogger.debug('New connection established! Registered as', connection.id)
+		ws.send(schemaMessage)
 		api.internal?.onJoin?.(connection)
 
 		// Detect disconnections
@@ -145,7 +151,7 @@ function createSocketServer(api: Api, path: string) {
 					let state: any
 
 					if (key.includes('|')) {
-						const keyParts = key.split('|') // [cleanKey, depend]
+						const keyParts = key.split('|') // [path, depend]
 						state = _states[keyParts[0]]?.syncGet(connection, keyParts[1])
 					} else {
 						state = _states[key]?.syncGet(connection)
@@ -163,7 +169,7 @@ function createSocketServer(api: Api, path: string) {
 				}
 				case 'function-call': {
 					if (!data) {
-						syncLogger.error('Payload data is missing in function-call!')
+						console.error('Payload data is missing in function-call!')
 						break
 					}
 					const { path, params } = data as FunctionCall
@@ -230,14 +236,28 @@ function getSocketServer() {
 	return _wss
 }
 
-// Set SyncSignal keys based on the path
-function setKeys(api: Api, path: string[]) {
+const schema: Record<string, string> = {} // path -> type
+function addToSchema(path: string[], type: string) {
+	schema[path.join('.')] = type
+}
+
+function setup(api: Api, path: string[] = []) {
 	for (const key of Object.keys(api)) {
 		const newPath = path.concat(key)
+		if (newPath[0] === 'internal') {
+			continue
+		}
 		if (api[key] instanceof SyncSignal) {
 			api[key].setKey(newPath.join('.'))
+			if (api[key] instanceof BaseSyncState) {
+				addToSchema(newPath, 'state')
+			} else {
+				addToSchema(newPath, 'signal')
+			}
 		} else if (typeof api[key] === 'object') {
-			setKeys(api[key], newPath)
+			setup(api[key], newPath)
+		} else if (typeof api[key] === 'function') {
+			addToSchema(newPath, 'function')
 		}
 	}
 }
