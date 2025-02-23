@@ -43,15 +43,15 @@
 		"url": "git+https://github.com/Sideways-Sky/api-sync.git"
 	},
 	"dependencies": {
-		"nanoid": "^5.0.8",
+		"nanoid": "^5.1.0",
 		"ws": "^8.18.0"
 	},
 	"devDependencies": {
-		"@robojs/server": "^0.6.2",
+		"@robojs/server": "^0.6.4",
 		"@swc/core": "latest",
 		"@types/node": "latest",
-		"@types/react": "^18.3.12",
-		"@types/ws": "^8.5.12",
+		"@types/react": "^18.3.18",
+		"@types/ws": "^8.5.14",
 		"discord.js": "latest",
 		"prettier": "latest",
 		"typescript": "latest"

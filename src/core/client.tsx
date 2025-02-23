@@ -1,10 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { ClientMessagePayload, FunctionCall, FunctionResponse, ServerMessagePayload } from './types'
-import type { SyncSignal, SyncState } from './server/state'
+import type { BaseSyncState, SyncSignal } from './server/state'
 import { Api } from './server'
 import { nanoid } from 'nanoid'
-
-// TODO: Finish client side signal subscriptions
 
 interface ClientContext<API extends Api> {
 	connected: boolean
@@ -12,7 +10,17 @@ interface ClientContext<API extends Api> {
 	ClientProxy?: Client<API>
 }
 
-export function createApiClient<API extends Api>(path: string = 'api-sync', debug?: boolean) {
+type debugEntry = 'receive' | 'callbacks' | 'connection' | 'function-call'
+type debugType = debugEntry | boolean
+
+function debugCheck(debugType: debugEntry, debug?: debugType) {
+	if (typeof debug === 'boolean' || !debug) {
+		return debug
+	}
+	return debug === debugType
+}
+
+export function createApiClient<API extends Api>(path: string = 'api-sync', debug?: debugType) {
 	const Context = createContext<ClientContext<any>>({
 		connected: false,
 		ws: null as WebSocket | null
@@ -72,7 +80,7 @@ type ClientApi<T extends Api> = {
 				(...args: P) => Promise<ReturnType<T[K]>>
 		: // If the value is a SyncState, return a function that returns the state
 			T[K] extends SyncSignal<infer X>
-			? T[K] extends SyncState<infer X>
+			? T[K] extends BaseSyncState<infer X>
 				? {
 						$$: ClientSyncState<X>
 					}
@@ -88,7 +96,7 @@ type ClientApi<T extends Api> = {
 
 const queue: { [key: string]: (value: unknown) => void } = {}
 
-function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: boolean): ClientContext<API> {
+function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: debugType): ClientContext<API> {
 	const [ws, setWs] = useState<WebSocket | null>(null)
 	const [connected, setConnected] = useState(false)
 	const cache = useRef<Record<string, unknown>>({}).current
@@ -106,12 +114,12 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 		const websocket = new WebSocket(`${wsProtocol}://${location.host}/${path}`)
 
 		websocket.onopen = () => {
-			debug && console.log('Connection established at', new Date().toISOString())
+			debugCheck('connection', debug) && console.log('Connection established at', new Date().toISOString())
 			setConnected(true)
 		}
 
 		websocket.onclose = () => {
-			debug && console.log('Connection closed at', new Date().toISOString())
+			debugCheck('connection', debug) && console.log('Connection closed at', new Date().toISOString())
 			setConnected(false)
 		}
 
@@ -128,7 +136,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 			const payload = JSON.parse(event.data) as ServerMessagePayload
 			let response: ClientMessagePayload | null = null
 
-			debug && console.log('Received message from server:', payload)
+			debugCheck('receive', debug) && console.log(`Received ${payload.type}: ${payload.key ?? ''}`, payload.data)
 
 			switch (payload.type) {
 				case 'ping':
@@ -238,7 +246,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 						key: path,
 						sub: (callback: (data: unknown) => void, depend?: string) => {
 							const key = path + (depend ? '|' + depend : '')
-							debug && console.log('Registering callback (in sub) for', key)
+							debugCheck('callbacks', debug) && console.log('add callback (sub): ', key)
 							const callbackId = registerCallback(key, {
 								func: (data, key) => {
 									if (key === key) {
@@ -249,7 +257,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 							})
 
 							return () => {
-								debug && console.log('Un-registering callback (in sub) for', key)
+								debugCheck('callbacks', debug) && console.log('remove callback (sub): ', key)
 								unregisterCallback(callbackId)
 							}
 						}
@@ -265,7 +273,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 							useEffect(() => {
 								if (connected && hasWs) {
 									// Register the callback to update the state
-									debug && console.log('Registering callback (in useSync) for', key)
+									debugCheck('callbacks', debug) && console.log('add callback (useSync): ', key)
 									const callbackId = registerCallback(key, {
 										func: (data, key) => {
 											if (key === key) {
@@ -277,7 +285,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 
 									// Unregister the callback when the component unmounts
 									return () => {
-										debug && console.log('Un-registering callback (in useSync) for', key)
+										debugCheck('callbacks', debug) && console.log('remove callback (useSync): ', key)
 										unregisterCallback(callbackId)
 									}
 								}
@@ -287,7 +295,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 						},
 						sub: (callback: (data: unknown) => void, depend?: string) => {
 							const key = path + (depend ? '|' + depend : '')
-							debug && console.log('Registering callback (in sub) for', key)
+							debugCheck('callbacks', debug) && console.log('add callback (sub): ', key)
 							const callbackId = registerCallback(key, {
 								func: (data, key) => {
 									if (key === key) {
@@ -298,7 +306,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 							})
 
 							return () => {
-								debug && console.log('Un-registering callback (in sub) for', key)
+								debugCheck('callbacks', debug) && console.log('remove callback (sub): ', key)
 								unregisterCallback(callbackId)
 							}
 						},
@@ -329,7 +337,7 @@ function setupSyncState<API extends Api>(path: string = 'api-sync', debug?: bool
 				return ClientProxy(`${path ? `${path}.` : ''}${String(prop)}`)
 			},
 			apply: function (_, __, argumentsList) {
-				debug && console.info(`Called function at path: ${path} with parameters: ${argumentsList}`)
+				debugCheck('function-call', debug) && console.info(`Called: ${path} with parameters: ${argumentsList}`)
 
 				// Send the function call to the server
 				const key = `${nanoid()}-${path}`

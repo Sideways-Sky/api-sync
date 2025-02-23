@@ -8,7 +8,7 @@ import { _states, SyncSignal } from './state.js'
 
 export const SyncServer = { getSocketServer, defineApi }
 
-interface Connection {
+export interface Connection {
 	id: string
 	isAlive: boolean
 	watch: string[]
@@ -142,28 +142,23 @@ function createSocketServer(api: Api, path: string) {
 						syncLogger.debug(`Connection ${connection.id} is now watching:`, connection.watch, ' added:', key)
 					}
 
-					if (key.includes('|')) {
-						const keyParts = key.split('|')
-						const cleanKey = keyParts[0]
-						const depend = keyParts[1]
+					let state: any
 
-						if (_states[cleanKey]?.get(depend)) {
-							response = {
-								data: _states[cleanKey].get(depend),
-								key,
-								type: 'update'
-							}
-						}
+					if (key.includes('|')) {
+						const keyParts = key.split('|') // [cleanKey, depend]
+						state = _states[keyParts[0]]?.syncGet(connection, keyParts[1])
+					} else {
+						state = _states[key]?.syncGet(connection)
 					}
 
-					// Send the current state to the client (if it exists)
-					if (_states[key]?.get()) {
+					if (state) {
 						response = {
-							data: _states[key].get(),
+							data: state,
 							key,
 							type: 'update'
 						}
 					}
+
 					break
 				}
 				case 'function-call': {
